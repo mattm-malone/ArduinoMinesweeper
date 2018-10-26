@@ -1,7 +1,21 @@
-<p>Use arrow keys to interact with the game!</p>
-<p>Close this page when you are done with this demo.</p>
+<p>Controls:</p>
+<p>Arrow keys: Move Cursor</p>
+<p>Z: Set Flag Down</p>
+<p>X: Test For Mine</p>
+<p>Close this page when you are done</p>
 <label id='lbl_keycode'>-</label>
 <script>
+  var mines = 10;
+  var remaining = 0;
+  var gameover = false;
+
+  //Status codes for board.
+  var mine = 9;
+  var flagged = -1;   // User marker flag
+  var unexposed = -2; // Default status
+  var exploded = -3;  // If you hit a mine.
+
+  //Javascript stuff for sending the pixels to arduino and lightboard
   var xhr=new XMLHttpRequest();
   function send_frame(frame) {
     xhr.open('GET','http://192.168.4.1/cc?pixels='+frame,true);
@@ -11,12 +25,28 @@
     xhr.open('GET','http://192.168.4.1/cc?brightness='+brightness,true);
     xhr.send();
   }
+  function hex(x) { 
+      return ('0' + parseInt(x).toString(16)).slice(-2); 
+  }
   function color2hex(c) {
-    function hex(x) { return ('0' + parseInt(x).toString(16)).slice(-2); }
     return '' + hex((c>>16)&0xFF) + hex((c>>8)&0xFF) + hex(c&0xFF);
   }
+  // Lays down the mines on the field
+  function setMines(){
+    var count = 0;
+    while(count < mines) {
+      var rand = Math.floor(Math.random() * 64);
+      var y = rand >> 3;
+      var x = (rand & (7));
+      if(rand < 64 && field[x,y] != mine) {
+        field[x,y] = mine;
+        count++;
+        updateNeighbors(x, y);
+      }
+    }
+  }
 
-  // 2D array storing pixel values
+  // 2D array storing pixel values. This is how the user sees the board
   var pixels=[[0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0],
@@ -25,19 +55,31 @@
               [0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0]];
-  var dots=[[0,0],[0,1],[0,2],[0,3],[0,4]];
-  var ballx=0,bally=0;              
-  
-  function dots2frame() {
+  // 2D array storing game state            
+  var field=[[0,0,0,0,0,0,0,0],
+              [0,0,0,0,0,0,0,0],
+              [0,0,0,0,0,0,0,0],
+              [0,0,0,0,0,0,0,0],
+              [0,0,0,0,0,0,0,0],
+              [0,0,0,0,0,0,0,0],
+              [0,0,0,0,0,0,0,0],
+              [0,0,0,0,0,0,0,0]];
+  // x,y              
+  var cursor=[0,0];           
 
-    var r, c, k;
-    for(r=0;r<8;r++)
-    for(c=0;c<8;c++)
-      pixels[r][c]=0; // clear pixel buffer
-    
-    for(k=0;k<5;k++) {
-      pixels[dots[k][1]][dots[k][0]] = (50*k+20);
-    }
+  function field2frame() {
+    //Convert current field data to pixel data the LED board can interpret
+    var r, c;
+    for(r=0;r<8;r++) {
+      for(c=0;c<8;c++) {
+        // TODO
+        pixels[r][c] = 0;
+        if(c == cursor[0] && r == cursor[1]) {
+          console.log(c + ',' + r);
+          pixels[r][c] = 50;
+        }
+      }
+    } 
 
     var comm='';
     for(r=0;r<8;r++) {
@@ -47,22 +89,37 @@
     }
     return comm;
   }
+  function updateNeighbors(x, y){
+    // TODO
+  }
 
-  var keyNames = ['Left', 'Up', 'Right', 'Down'];
-  var deltaxy = [[-1,0],[0,-1],[1,0],[0,1]];
+  var keyNames = ['Left', 'Up', 'Right', 'Down', 'Z', 'X'];
+  var delta = [-1, -1, 1, 1];
   function on_keydown(e) {
     var keyCode = e.keyCode;
+    // Move Cursor
     if(keyCode>=37 && keyCode<=40) {
       document.getElementById('lbl_keycode').innerHTML = keyNames[keyCode-37];
-      var k;
-      for(k=0;k<4;k++) {dots[k][0]=dots[k+1][0];dots[k][1]=dots[k+1][1];}
-      dots[k][0]=(dots[k][0]+deltaxy[keyCode-37][0]+8)%8;
-      dots[k][1]=(dots[k][1]+deltaxy[keyCode-37][1]+8)%8;
-      send_frame(dots2frame());
+      var cursorIndex = (keyCode-37) % 2
+      // Modulo so I don't have to do 4 if statements.
+      cursor[cursorIndex] = (cursor[cursorIndex] + delta[keyCode-37]+8) % 8;
+      send_frame(field2frame());
+    }
+    // Set Flag down (z)
+    else if (keyCode == 90) {
+      // TODO
+    } 
+    // Query field for mines (x)
+    else if(keyCode == 88) {
+      checkSquare();
     }
   }
 
+  function checkSquare() {
+
+  }
+
   document.addEventListener("keydown", on_keydown, false);
-  send_brightness(48);
-  send_frame(dots2frame());
+  send_brightness(30);
+  send_frame(field2frame());
 </script>
