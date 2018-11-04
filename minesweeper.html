@@ -3,11 +3,13 @@
 <p>Z: Set Flag Down</p>
 <p>X: Test For Mine</p>
 <p>C: Get Square Value (if revealed)</p>
+<p>Enter: Start/Restart</p>
 <p>Close this page when you are done</p>
 <label id='lbl_keycode'>-</label>
+
 <script>
-  var mines = 10;
-  var remaining = mines;
+  var mines = 6;
+  var remaining = 64;
   var gameover = false;
   var numFlags = 0;
 
@@ -22,7 +24,7 @@
   var cursorColor = '000088';        // Blue
   var unexposedColor = '888888';     // White
   var mineColor = '880000';			 // Red
-  var flagColor = '880000'			 // Red
+  var flagColor = '880000';			 // Red
   var oneAdj = '008800';			 // Green
   var twoAdj = '888800';			 // Yellow
   var threeAdj = '884000';			 // Orange
@@ -65,15 +67,28 @@
     var hex = '';
     for(r=0;r<8;r++) {
       for(c=0;c<8;c++) {
-        // Cursor goes first
-        if(r == cursor[1] && c == cursor[0]) 
+        if (!gameover && r == cursor[1] && c == cursor[0]) 
+          // Cursor goes first          
           hex += cursorColor;
-	    // Flag
-		else if (revealState[r][c] == flagged)
-			hex += flagColor;
-        // unrevealed
-        else if (revealState[r][c] == 0)
-          hex += unexposedColor;
+		    else if (revealState[r][c] == flagged)
+			    hex += flagColor;
+        else {
+          if(gameover && field[r][c] == mine)
+            hex += mineColor;
+          else if (revealState[r][c] == 1) {
+            if(field[r][c] == 0)
+              hex += exposedColor;
+            if (field[r][c] == 1)
+              hex += oneAdj;
+            else if (field[r][c] == 2)
+              hex += twoAdj;
+            else if(field[r][c] == 3)
+              hex += threeAdj;
+            else if (field[r][c] >3)
+              hex += highAdj;
+          } else
+            hex += unexposedColor;
+        }
       }
     } 
     return hex;
@@ -83,10 +98,9 @@
     var count = 0;
     while(count < mines) {
       var rand = Math.floor(Math.random() * 64);
-      var y = Math.floor(rand / 8)
-      var x = rand % 8
+      var y = Math.floor(rand / 8);
+      var x = rand % 8;
       if(rand < 64 && field[y][x] != mine) {
-		console.log('mine at' + x + ' ' + y);
         field[y][x] = mine;
         count++;
         updateNeighbors(x, y);
@@ -95,43 +109,92 @@
   }
   //Increase number of adjacent mines for squares around mine
   function updateNeighbors(x, y){
-	var r, c
-	for(r = y-1; r <= y+1; r++) {
-		for(c = x-1; c <= x+1; c++) {
-			console.log("update "+c + ' ' + r);
-			if(r >= 0 && r <= 7 && c >= 0 && c <= 7 && field[r][c] != mine )
-				field[r][c]++;
-		}
-	}
+    var r, c;
+    for(r = y-1; r <= y+1; r++) {
+      for(c = x-1; c <= x+1; c++) {
+        if(r >= 0 && r <= 7 && c >= 0 && c <= 7 && field[r][c] != mine)
+          field[r][c]++;
+      }
+    }
   }
 
   var keyNames = ['Left', 'Up', 'Right', 'Down', 'Z', 'X'];
   var delta = [-1, -1, 1, 1];
   function on_keydown(e) {
     var keyCode = e.keyCode;
-    // Move Cursor
-    if(keyCode>=37 && keyCode<=40) {
+	  if (keyCode == 13) {
+	    // Reset or start game (enter)
+      gameover = false;
+		  resetGame();
+      send_frame(field2frame());
+	  } else if(keyCode>=37 && keyCode<=40) {
+      // Move Cursor
       document.getElementById('lbl_keycode').innerHTML = keyNames[keyCode-37];
-      var cursorIndex = (keyCode-37) % 2
-      // Modulo so I don't have to do 4 if statements.
+      // Modulo so I don't have to do 4 if statements.     
+      var cursorIndex = (keyCode-37) % 2;
       cursor[cursorIndex] = (cursor[cursorIndex] + delta[keyCode-37]+8) % 8;
       send_frame(field2frame());
-    }
-    // Set Flag down (z)
-    else if (keyCode == 90) {
-	  if(revealState[cursor[1]][cursor[0]] == flagged) {
-			
-		
-    } 
-    // Query field for mines (x)
-    else if(keyCode == 88) {
-      setMines();
-	  field2frame();
-    }
+    } else if (keyCode == 90) {
+      // Set Flag down (z)
+      if (revealState[cursor[1]][cursor[0]] == flagged) {
+      
+      } 
+    } else if (keyCode == 88) {
+        // Query field for mines (x)
+        checkSquare(cursor[0], cursor[1]);
+        send_frame(field2frame());
+      } 
   }
+  
+  function resetGame() {
+    var r, c;
+    
+    for (r = 0; r < 8; r++) {
+      for (c = 0; c < 8; c++) {
+        revealState[r][c] = 0;
+        field[r][c] = 0;
+      }
+    }
+    setMines();
+  }
+  
 
   function checkSquare(x, y) {
-	i
+    if (!gameover) {
+      if (field[y][x] == mine) {
+        // Game over!
+        // Todo reveal all mines
+        gameover = true;
+      } else {
+        // Expose if not already
+        if (field[y][x] > 0) {
+          // if it's an adjacency square, only expose that one.
+          revealState[y][x] = 1;
+          remaining--;
+        } else {
+          exposeNearby(x, y);
+        }
+      }
+    }
+    field2frame();
+  }
+
+  function exposeNearby(x, y){
+    var r, c;
+    for (r = y - 1; r <= y + 1; r++) {
+      for (c = x - 1; c <= x + 1; c++) {
+        if (r >= 0 && r <= 7 && c >= 0 && c <= 7 && revealState[r][c] != 1) {
+          if (field[r][c] == 0) {
+            revealState[r][c] = 1;
+            remaining--;
+            exposeNearby(c, r);
+          } else if (field[r][c] != mine) {
+              revealState[r][c] = 1;
+              remaining--;
+          }
+        }
+      }
+    }
   }
 
   document.addEventListener("keydown", on_keydown, false);
