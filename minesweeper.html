@@ -2,18 +2,31 @@
 <p>Arrow keys: Move Cursor</p>
 <p>Z: Set Flag Down</p>
 <p>X: Test For Mine</p>
+<p>C: Get Square Value (if revealed)</p>
 <p>Close this page when you are done</p>
 <label id='lbl_keycode'>-</label>
 <script>
   var mines = 10;
-  var remaining = 0;
+  var remaining = mines;
   var gameover = false;
+  var numFlags = 0;
 
-  //Status codes for board.
+  //Status codes for boards
   var mine = 9;
-  var flagged = -1;   // User marker flag
-  var unexposed = -2; // Default status
-  var exploded = -3;  // If you hit a mine.
+  var unexposed = 0;                 // Default status
+  var flagged = -1;                  // User marker flag
+  var exploded = -3;                 // If you hit a mine.
+
+  // Colors for arduino
+  var exposedColor = '000000';       // Black, not on
+  var cursorColor = '000088';        // Blue
+  var unexposedColor = '888888';     // White
+  var mineColor = '880000';			 // Red
+  var flagColor = '880000'			 // Red
+  var oneAdj = '008800';			 // Green
+  var twoAdj = '888800';			 // Yellow
+  var threeAdj = '884000';			 // Orange
+  var highAdj = '400088';			 // Purple
 
   //Javascript stuff for sending the pixels to arduino and lightboard
   var xhr=new XMLHttpRequest();
@@ -25,29 +38,8 @@
     xhr.open('GET','http://192.168.4.1/cc?brightness='+brightness,true);
     xhr.send();
   }
-  function hex(x) { 
-      return ('0' + parseInt(x).toString(16)).slice(-2); 
-  }
-  function color2hex(c) {
-    return '' + hex((c>>16)&0xFF) + hex((c>>8)&0xFF) + hex(c&0xFF);
-  }
-  // Lays down the mines on the field
-  function setMines(){
-    var count = 0;
-    while(count < mines) {
-      var rand = Math.floor(Math.random() * 64);
-      var y = rand >> 3;
-      var x = (rand & (7));
-      if(rand < 64 && field[x,y] != mine) {
-        field[x,y] = mine;
-        count++;
-        updateNeighbors(x, y);
-      }
-    }
-  }
-
-  // 2D array storing pixel values. This is how the user sees the board
-  var pixels=[[0,0,0,0,0,0,0,0],
+  // 2D array storing whether a given square is revealed or not.
+  var revealState=[[0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0],
@@ -56,7 +48,7 @@
               [0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0]];
   // 2D array storing game state            
-  var field=[[0,0,0,0,0,0,0,0],
+  var field= [[0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0],
@@ -64,33 +56,53 @@
               [0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0],
               [0,0,0,0,0,0,0,0]];
-  // x,y              
-  var cursor=[0,0];           
+  // x, y            
+  var cursor=[0,0];    
 
   function field2frame() {
     //Convert current field data to pixel data the LED board can interpret
     var r, c;
+    var hex = '';
     for(r=0;r<8;r++) {
       for(c=0;c<8;c++) {
-        // TODO
-        pixels[r][c] = 0;
-        if(c == cursor[0] && r == cursor[1]) {
-          console.log(c + ',' + r);
-          pixels[r][c] = 50;
-        }
+        // Cursor goes first
+        if(r == cursor[1] && c == cursor[0]) 
+          hex += cursorColor;
+	    // Flag
+		else if (revealState[r][c] == flagged)
+			hex += flagColor;
+        // unrevealed
+        else if (revealState[r][c] == 0)
+          hex += unexposedColor;
       }
     } 
-
-    var comm='';
-    for(r=0;r<8;r++) {
-      for(c=0;c<8;c++) {
-        comm+=color2hex(pixels[r][c]);
+    return hex;
+  }
+    // Lays down the mines on the field
+  function setMines(){
+    var count = 0;
+    while(count < mines) {
+      var rand = Math.floor(Math.random() * 64);
+      var y = Math.floor(rand / 8)
+      var x = rand % 8
+      if(rand < 64 && field[y][x] != mine) {
+		console.log('mine at' + x + ' ' + y);
+        field[y][x] = mine;
+        count++;
+        updateNeighbors(x, y);
       }
     }
-    return comm;
   }
+  //Increase number of adjacent mines for squares around mine
   function updateNeighbors(x, y){
-    // TODO
+	var r, c
+	for(r = y-1; r <= y+1; r++) {
+		for(c = x-1; c <= x+1; c++) {
+			console.log("update "+c + ' ' + r);
+			if(r >= 0 && r <= 7 && c >= 0 && c <= 7 && field[r][c] != mine )
+				field[r][c]++;
+		}
+	}
   }
 
   var keyNames = ['Left', 'Up', 'Right', 'Down', 'Z', 'X'];
@@ -107,16 +119,19 @@
     }
     // Set Flag down (z)
     else if (keyCode == 90) {
-      // TODO
+	  if(revealState[cursor[1]][cursor[0]] == flagged) {
+			
+		
     } 
     // Query field for mines (x)
     else if(keyCode == 88) {
-      checkSquare();
+      setMines();
+	  field2frame();
     }
   }
 
-  function checkSquare() {
-
+  function checkSquare(x, y) {
+	i
   }
 
   document.addEventListener("keydown", on_keydown, false);
